@@ -1,0 +1,56 @@
+from tkinter import *
+import requests
+
+
+def find_aqi():
+    city = ent_city.get()
+    if not city:
+        lab_result.config(text="Please enter a city name.")
+        return
+
+    API_URL = f"https://api.waqi.info/feed/{city}/?token=3453117c7453f501a9b65e30bbf3d3f2d320e97e"
+
+    try:
+        response = requests.get(API_URL)
+        data = response.json()
+        if data["status"] == "ok":
+            aqi = data["data"]["aqi"]
+            level = get_aqi_level(aqi)
+            lab_result.config(text=f"AQI = {aqi} ==> {level}")
+        else:
+            lab_result.config(text=f"Could not fetch AQI for {city}.")
+    except Exception as e:
+        lab_result.config(text=f"An error occurred: {e}")
+
+def get_aqi_level(aqi):
+    if aqi <= 50:
+        return "Good"
+    elif 51 <= aqi <= 100:
+        return "Moderate"
+    elif 101 <= aqi <= 150:
+        return "Unhealthy for Sensitive Groups"
+    elif 151 <= aqi <= 200:
+        return "Unhealthy"
+    elif 201 <= aqi <= 300:
+        return "Very Unhealthy"
+    else:
+        return "Hazardous"
+
+root = Tk()
+root.title("Air Quality Index")
+root.geometry("600x600+300+50")
+f = ("arial", 25, "bold")
+
+lab_name = Label(root, text="Air Quality Index", font=f)
+lab_city = Label(root, text="Enter City Name", font=f)
+ent_city = Entry(root, font=f)
+btn_find = Button(root, text="Find AQI", font=f, command=find_aqi)
+lab_result = Label(root, text="", font=("arial", 20, "bold"))
+
+lab_name.pack(pady=10)
+lab_city.pack(pady=10)
+ent_city.pack(pady=10)
+btn_find.pack(pady=10)
+lab_result.pack(pady=20)
+
+root.mainloop()
