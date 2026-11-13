@@ -30,4 +30,4 @@ AQI is informational and not medical advice. Always follow local public-health g
 
 MIT License. See [`LICENSE`](./LICENSE).
 
-Last updated: 2026-11-13 02:13 UTC
+Last updated: 2026-11-13 10:12 UTC
