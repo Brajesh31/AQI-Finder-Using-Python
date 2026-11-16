@@ -4,3 +4,21 @@ __pycache__/
 venv/
 .env
 .idea/workspace.xml
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local diagnostics and generated files
+*.log
+.DS_Store
