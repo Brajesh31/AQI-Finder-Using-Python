@@ -1,0 +1,35 @@
+name: ✨ Feature request
+description: Propose a scoped AQI Finder improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain who needs this and why the current application is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: Describe inputs, outputs, edge cases, and failure behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy, provider, and health implications
+      description: Mention new location collection, persistence, provider quota, or public-health claims.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Project boundaries
+      options:
+        - label: I understand that AQI outputs are informational and not medical advice.
+          required: true
