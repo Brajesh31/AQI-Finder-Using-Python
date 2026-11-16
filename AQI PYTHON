@@ -17,6 +17,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -60,7 +61,7 @@ def fetch_aqi(city: str, token: str, session: requests.Session | None = None) ->
         raise AQIProviderError("WAQI_TOKEN is not configured. Add it to your environment.")
 
     client = session or requests
-    url = f"{API_BASE_URL}/{requests.utils.quote(query, safe='')}/"
+    url = f"{API_BASE_URL}/{quote(query, safe='')}/"
     try:
         response = client.get(
             url,
