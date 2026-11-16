@@ -23,7 +23,7 @@ The project began as a small Tkinter prototype that queried the WAQI feed and ma
 - The previously committed provider token is treated as exposed and should be rotated with WAQI. Replacing the current source value does not remove historical Git objects.
 
 ### Validation status
-- Automated test coverage is a planned follow-up and must not be represented as passing until tests are committed and run.
+- Automated boundary and mocked provider tests have been added. CI execution is pending verification.
 - Live provider behaviour and current station selector/query coverage have not been exhaustively verified.
 
 ## [0.1.0] - 2025-01-01
