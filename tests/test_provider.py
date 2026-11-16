@@ -1,3 +1,4 @@
+import importlib.machinery
 import importlib.util
 from pathlib import Path
 
@@ -5,10 +6,11 @@ import pytest
 import requests
 
 APP_PATH = Path(__file__).resolve().parents[1] / "AQI PYTHON"
-spec = importlib.util.spec_from_file_location("aqi_app_provider", APP_PATH)
+loader = importlib.machinery.SourceFileLoader("aqi_app_provider", str(APP_PATH))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+assert spec is not None
 app = importlib.util.module_from_spec(spec)
-assert spec and spec.loader
-spec.loader.exec_module(app)
+loader.exec_module(app)
 
 class FakeResponse:
     def __init__(self, payload, status_code=200):
