@@ -51,3 +51,13 @@ flowchart TD
 ## Security reminder
 
 The original version had a provider token embedded in source code. A token committed to a public repository must be considered compromised and rotated with WAQI. The current source reads `WAQI_TOKEN` from the process environment. See the root [Security policy](../SECURITY.md).
+
+
+## Repository policies and maintenance
+
+- [Contribution guide](../CONTRIBUTING.md): development and review workflow.
+- [Security policy](../SECURITY.md): token handling and vulnerability reports.
+- [Governance](../GOVERNANCE.md): project decision principles.
+- [Accessibility statement](../ACCESSIBILITY.md): desktop UI accessibility expectations.
+- [Release process](../RELEASE.md): release readiness and rollback.
+- [Maintainers](../MAINTAINERS.md): stewardship responsibilities.
