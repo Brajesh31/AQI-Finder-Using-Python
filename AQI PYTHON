@@ -1,56 +1,207 @@
-from tkinter import *
+"""Desktop AQI lookup using the World Air Quality Index (WAQI) feed.
+
+Run from the repository root with:
+    python "AQI PYTHON"
+
+Configure the provider token in the environment before launching:
+    WAQI_TOKEN=your_token python "AQI PYTHON"
+
+The application is informational only. AQI scales and health guidance can vary
+by jurisdiction. Consult local public-health and environmental authorities.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+import tkinter as tk
+from tkinter import ttk
+from typing import Any
+
 import requests
 
+API_BASE_URL = "https://api.waqi.info/feed"
+REQUEST_TIMEOUT_SECONDS = 12
 
-def find_aqi():
-    city = ent_city.get()
-    if not city:
-        lab_result.config(text="Please enter a city name.")
-        return
 
-    API_URL = f"https://api.waqi.info/feed/{city}/?token=3453117c7453f501a9b65e30bbf3d3f2d320e97e"
+class AQIProviderError(Exception):
+    """Raised when the provider response is unavailable or invalid."""
 
-    try:
-        response = requests.get(API_URL)
-        data = response.json()
-        if data["status"] == "ok":
-            aqi = data["data"]["aqi"]
-            level = get_aqi_level(aqi)
-            lab_result.config(text=f"AQI = {aqi} ==> {level}")
-        else:
-            lab_result.config(text=f"Could not fetch AQI for {city}.")
-    except Exception as e:
-        lab_result.config(text=f"An error occurred: {e}")
 
-def get_aqi_level(aqi):
+def get_aqi_level(aqi: int | float) -> str:
+    """Map a numeric AQI to the six-category scale used by this project.
+
+    This mapping follows the category breakpoints used by the original
+    application. It should not be assumed to be interchangeable with every
+    national or regional AQI standard.
+    """
+    if isinstance(aqi, bool) or not isinstance(aqi, (int, float)) or aqi < 0:
+        raise ValueError("AQI must be a non-negative number.")
+
     if aqi <= 50:
         return "Good"
-    elif 51 <= aqi <= 100:
+    if aqi <= 100:
         return "Moderate"
-    elif 101 <= aqi <= 150:
+    if aqi <= 150:
         return "Unhealthy for Sensitive Groups"
-    elif 151 <= aqi <= 200:
+    if aqi <= 200:
         return "Unhealthy"
-    elif 201 <= aqi <= 300:
+    if aqi <= 300:
         return "Very Unhealthy"
-    else:
-        return "Hazardous"
+    return "Hazardous"
 
-root = Tk()
-root.title("Air Quality Index")
-root.geometry("600x600+300+50")
-f = ("arial", 25, "bold")
 
-lab_name = Label(root, text="Air Quality Index", font=f)
-lab_city = Label(root, text="Enter City Name", font=f)
-ent_city = Entry(root, font=f)
-btn_find = Button(root, text="Find AQI", font=f, command=find_aqi)
-lab_result = Label(root, text="", font=("arial", 20, "bold"))
+def fetch_aqi(city: str, token: str, session: requests.Session | None = None) -> dict[str, Any]:
+    """Fetch and validate current AQI data for a city/station query."""
+    query = city.strip()
+    if not query:
+        raise ValueError("Enter a city or supported station name.")
+    if not token.strip():
+        raise AQIProviderError("WAQI_TOKEN is not configured. Add it to your environment.")
 
-lab_name.pack(pady=10)
-lab_city.pack(pady=10)
-ent_city.pack(pady=10)
-btn_find.pack(pady=10)
-lab_result.pack(pady=20)
+    client = session or requests
+    url = f"{API_BASE_URL}/{requests.utils.quote(query, safe='')}/"
+    try:
+        response = client.get(
+            url,
+            params={"token": token.strip()},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            headers={"Accept": "application/json"},
+        )
+        response.raise_for_status()
+    except requests.Timeout as exc:
+        raise AQIProviderError("The AQI service took too long to respond. Please try again.") from exc
+    except requests.HTTPError as exc:
+        raise AQIProviderError("The AQI service returned an HTTP error. Please try again later.") from exc
+    except requests.RequestException as exc:
+        raise AQIProviderError("Could not connect to the AQI service. Check your internet connection.") from exc
 
-root.mainloop()
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise AQIProviderError("The AQI service returned an unreadable response.") from exc
+
+    if not isinstance(payload, dict):
+        raise AQIProviderError("The AQI service returned an unexpected response format.")
+    if payload.get("status") != "ok":
+        raise AQIProviderError("No AQI data was returned. Check the city name or provider availability.")
+
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise AQIProviderError("The AQI response is missing its data section.")
+
+    aqi = data.get("aqi")
+    if isinstance(aqi, bool) or not isinstance(aqi, (int, float)) or aqi < 0:
+        raise AQIProviderError("The provider did not return a valid numeric AQI value.")
+
+    city_info = data.get("city") if isinstance(data.get("city"), dict) else {}
+    time_info = data.get("time") if isinstance(data.get("time"), dict) else {}
+    return {
+        "aqi": aqi,
+        "level": get_aqi_level(aqi),
+        "station": city_info.get("name"),
+        "observed_at": time_info.get("s"),
+        "attribution": "Data supplied by the World Air Quality Index project (WAQI).",
+    }
+
+
+class AQIFinderApp:
+    """Tkinter interface with network work isolated from the UI thread."""
+
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        root.title("Air Quality Index Finder")
+        root.geometry("640x520")
+        root.minsize(480, 420)
+
+        self.token = os.getenv("WAQI_TOKEN", "").strip()
+        self.city_var = tk.StringVar()
+        self.status_var = tk.StringVar(value="Enter a city or supported station name.")
+        self.result_var = tk.StringVar(value="AQI will appear here.")
+        self.details_var = tk.StringVar(value="")
+
+        frame = ttk.Frame(root, padding=28)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="🌍 Air Quality Index Finder", font=("Arial", 22, "bold")).pack(pady=(8, 14))
+        ttk.Label(
+            frame,
+            text="Look up the latest AQI reading provided for a location.",
+            wraplength=540,
+            justify="center",
+        ).pack(pady=(0, 20))
+
+        ttk.Label(frame, text="City / station").pack(anchor="w")
+        self.city_entry = ttk.Entry(frame, textvariable=self.city_var, font=("Arial", 14))
+        self.city_entry.pack(fill="x", pady=(6, 14))
+        self.city_entry.bind("<Return>", lambda _event: self.find_aqi())
+
+        self.search_button = ttk.Button(frame, text="Find AQI", command=self.find_aqi)
+        self.search_button.pack(pady=4)
+
+        ttk.Label(frame, textvariable=self.result_var, font=("Arial", 20, "bold"), wraplength=540).pack(pady=(24, 8))
+        ttk.Label(frame, textvariable=self.details_var, wraplength=540, justify="center").pack(pady=4)
+        ttk.Label(frame, textvariable=self.status_var, wraplength=540, justify="center").pack(pady=(16, 8))
+
+        ttk.Separator(frame).pack(fill="x", pady=14)
+        ttk.Label(
+            frame,
+            text="AQI is informational, not medical advice. Follow local public-health guidance. "
+                 "The displayed categories use this project's configured breakpoints.",
+            wraplength=540,
+            justify="center",
+        ).pack()
+        self.city_entry.focus_set()
+
+    def find_aqi(self) -> None:
+        city = self.city_var.get().strip()
+        if not city:
+            self.status_var.set("Please enter a city or supported station name.")
+            self.city_entry.focus_set()
+            return
+        if not self.token:
+            self.status_var.set("WAQI_TOKEN is missing. Configure it before searching.")
+            return
+
+        self.search_button.configure(state="disabled")
+        self.result_var.set("Fetching AQI…")
+        self.details_var.set("")
+        self.status_var.set("Contacting the AQI provider. Please wait.")
+
+        thread = threading.Thread(target=self._fetch_in_background, args=(city,), daemon=True)
+        thread.start()
+
+    def _fetch_in_background(self, city: str) -> None:
+        try:
+            result = fetch_aqi(city, self.token)
+            self.root.after(0, self._show_result, result)
+        except (AQIProviderError, ValueError) as exc:
+            self.root.after(0, self._show_error, str(exc))
+
+    def _show_result(self, result: dict[str, Any]) -> None:
+        self.result_var.set(f"AQI {result['aqi']} · {result['level']}")
+        details = []
+        if result.get("station"):
+            details.append(f"Station: {result['station']}")
+        if result.get("observed_at"):
+            details.append(f"Observed: {result['observed_at']}")
+        details.append(result["attribution"])
+        self.details_var.set("\n".join(details))
+        self.status_var.set("AQI lookup completed.")
+        self.search_button.configure(state="normal")
+
+    def _show_error(self, message: str) -> None:
+        self.result_var.set("AQI unavailable")
+        self.details_var.set("")
+        self.status_var.set(message)
+        self.search_button.configure(state="normal")
+
+
+def main() -> None:
+    root = tk.Tk()
+    AQIFinderApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
