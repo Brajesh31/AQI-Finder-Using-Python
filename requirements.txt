@@ -1,0 +1,2 @@
+# Runtime dependency for WAQI HTTPS requests
+requests>=2.31,<3
